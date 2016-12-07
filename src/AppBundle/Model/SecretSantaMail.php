@@ -2,6 +2,7 @@
 namespace AppBundle\Model;
 
 use Symfony\Component\Config\Definition\Exception\Exception;
+use Symfony\Component\Console\Output\OutputInterface;
 
 class SecretSantaMail {
 
@@ -13,6 +14,11 @@ class SecretSantaMail {
 
     private $sent_emails = array();
 
+    public function getParticipants ()
+    {
+        return $this->participants;
+    }
+
     /**
      * Run
      * runs the secret santa script on an array of users.
@@ -21,35 +27,48 @@ class SecretSantaMail {
      */
     public function send(){
 
-        if(!$this->validate()){
+        $this->validate();
+        $this->shuffle();
 
-        }
-        $receivers = $this->shuffle();
-
-        $this->sendEmails($matched);
+        //$this->sendEmails($matched);
 
 
         return true;
     }
 
-    public function addUsers($newUsers) {
-
-        foreach ($newUsers as $user) {
-            if(array_key_exists($user['email'], $this->participants)){
-                continue;
-            }
-            $this->participants[$user['email']] = $user['name'];
+    public function addUser ($name, $email)
+    {
+        if($this->validateMail($email)) {
+            $this->participants[$email] = [
+                'name' => $name,
+                'email' => $email,
+                'recipient' => false,
+            ];
         }
+    }
 
+    public function addUsers($newUsers)
+    {
+        foreach ($newUsers as $user) {
+            $this->addUser($user['name'], $user['email']);
+        }
+    }
+
+    private function validateMail($email)
+    {
+        if(array_key_exists($email, $this->participants)){
+            return false;
+        }
+        return true;
     }
 
     /**
      * Validate recipients array
      */
-    private function validate(){
+    public function validate(){
 
         if(count($this->participants) < 2) {
-            return false;
+            throw new \Exception("Not enough Participants");
         }
 
         return true;
@@ -67,44 +86,37 @@ class SecretSantaMail {
         $this->mail_from = "{$name} < {$email} >";
     }
 
-    private function shuffle(){
+    public function shuffle(OutputInterface $output)
+    {
+        $leftOverReceivers  = $this->participants;
 
-        $givers     = $this->participants;
-        $receavers  = $users_array;
 
-        //Foreach giver
-        foreach($givers as $uid => $user){
+        foreach($this->participants as $userMail => $user){
 
-            $not_assigned = true;
+            $output->writeln('Santa: '.$user['name']);
 
-            //While a user hasn't been assigned their secret santa
-            while($not_assigned){
-                //Randomly pick a person for the user to buy for
-                $choice = rand(0, sizeof($receavers)-1);
-                //If randomly picked user is NOT themselves
-                if($user['email'] !== $receavers[$choice]['email']){
-                    //Assign the user the randomly picked user
-                    $givers[$uid]['giving_to'] = $receavers[$choice];
-                    //And remove them from the list
-                    unset($receavers[$choice]);
-                    //Correct array
-                    $receavers = array_values($receavers);
-                    //exit loop
-                    $not_assigned = false;
-                }else{
-                    //If we are the laster user left and have been given ourselfs
-                    if(sizeof($receavers) == 1){
-                        //Swap with someone else (in this case the first guy who got assigned.
-                        //Steal first persons, person and give self to them.
-                        $givers[$uid]['giving_to'] = $givers[0]['giving_to'];
-                        $givers[0]['giving_to'] = $givers[$uid];
-                        $not_assigned = false;
-                    }
-                }
-            }
+            $potentialReceivers = $leftOverReceivers;
+            unset($potentialReceivers[$userMail]);
+
+            $potentialReceivers = array_keys($potentialReceivers);
+
+            $output->writeln([
+                'potReceivers:' . join(', ', $potentialReceivers)
+            ]);
+
+            $target = array_rand($potentialReceivers);
+            $targetMail = $potentialReceivers[$target];
+
+            $output->writeln('target: '.$targetMail);
+
+            unset($leftOverReceivers[$targetMail]);
+
+            $this->participants[$userMail]['recipient'] = [
+                'name' => $this->participants[$targetMail]['name'],
+                'email' => $this->participants[$targetMail]['email'],
+
+            ];
         }
-        //Return array of matched users
-        return $givers;
     }
 
     /**

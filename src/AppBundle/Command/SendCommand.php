@@ -1,6 +1,7 @@
 <?php
 namespace AppBundle\Command;
 
+use AppBundle\Model\SecretSantaMail;
 use Symfony\Bundle\FrameworkBundle\Command\ContainerAwareCommand;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
@@ -51,22 +52,29 @@ class SendCommand extends ContainerAwareCommand
         $inputFile = $input->getOption('file');
         $inputUsers = $input->getOption('user');
 
+        $santaMail = new SecretSantaMail();
+
         if(!empty($inputFile)) {
             // TODO
         }
         if(!empty($inputUsers)){
-            $output->writeln(print_r($inputUsers, true));
-            $this->fillUserArray($inputUsers);
-        }
-    }
 
-    private function assignSantas($inputUsers) {
-        foreach ($inputUsers as $index => $userRow) {
-            $user = explode(':', $userRow);
-            $this->santas[] = [
-                'name' => $user[0],
-                'mail' => $user[1],
-            ];
+            foreach ($inputUsers as $index => $userRow) {
+                $user = explode(':', $userRow);
+                $santaMail->addUser($user[0], $user[1]);
+            }
+
+        }
+
+        if($santaMail->validate()) {
+
+            $shuffled = false;
+
+            while($shuffled === false) {
+                $santaMail->shuffle($output);
+            }
+
+            $output->writeln(print_r($santaMail->getParticipants(), true));
         }
     }
 }
