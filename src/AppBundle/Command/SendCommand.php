@@ -68,11 +68,27 @@ class SendCommand extends ContainerAwareCommand
 
         if($santaMail->validate()) {
 
-            $shuffled = false;
+            $santaMail->shuffle($output);
+            
+            $participants = $santaMail->getParticipants();
 
-            while($shuffled === false) {
-                $santaMail->shuffle($output);
+            
+            foreach ($participants as $santa) {
+                $mail = \Swift_Message::newInstance()
+                    ->setSubject($this->getContainer()->getParameter('mail_title'))
+                    ->setFrom(
+                        $this->getContainer()->getParameter('mail_from'),
+                        $this->getContainer()->getParameter('mail_from_name'))
+                    ->setTo($santa['email'], $santa['name'])
+                    ->setBody(
+                        $this->renderView('emails/santa.twig', array(
+                            'name' => $santa['name'],
+                            'target' => $santa['recipient']['name']
+                        ))
+                    );
             }
+            
+
 
             $output->writeln(print_r($santaMail->getParticipants(), true));
         }

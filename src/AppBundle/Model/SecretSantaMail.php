@@ -74,18 +74,6 @@ class SecretSantaMail {
         return true;
     }
 
-    public function setTitle($title){
-        $this->mail_title = $title;
-    }
-
-    public function setAmount($price){
-        $this->item_value = $price;
-    }
-
-    public function setFrom($name,$email){
-        $this->mail_from = "{$name} < {$email} >";
-    }
-
     public function shuffle(OutputInterface $output)
     {
         $leftOverReceivers  = $this->participants;
@@ -97,6 +85,10 @@ class SecretSantaMail {
 
             $potentialReceivers = $leftOverReceivers;
             unset($potentialReceivers[$userMail]);
+
+            if(count($potentialReceivers) === 0) {
+                throw new \Exception("Bad Luck, try again");
+            }
 
             $potentialReceivers = array_keys($potentialReceivers);
 
@@ -118,37 +110,5 @@ class SecretSantaMail {
             ];
         }
     }
-
-    /**
-     * Send Emails
-     * Emails all matched users with details of who they should be buying for.
-     * @param $matched users
-     */
-    private function sendEmails($assigned_users){
-        //For each user
-        foreach($assigned_users as $giver){
-            //Send the following email
-            $email_body = "Hello {$giver['name']}, 
-				For Secret Santa this year you will be buying a present for {$giver['giving_to']['name']} ({$giver['giving_to']['email']})
-
-				Presents should all be around £{$this->item_value},
-
-				Good luck and Merry Christmas,
-				Santa
-				";
-            //Log that its sent
-            $this->sent_emails[] = $giver['email'];
-            //Send em via normal PHP mail method
-            mail($giver['email'], $this->mail_title, $email_body, "From: {$this->mail_from}\r\n");
-        }
-    }
-
-    /**
-     * Get Sent Emails
-     * Return the list of emails that have been sent via the script
-     * @return Array of emails
-     */
-    public function getSentEmails(){
-        return $this->sent_emails;
-    }
+    
 }
