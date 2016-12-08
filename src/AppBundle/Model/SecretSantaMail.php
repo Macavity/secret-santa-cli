@@ -1,6 +1,7 @@
 <?php
 namespace AppBundle\Model;
 
+use Psr\Log\LoggerInterface;
 use Symfony\Component\Config\Definition\Exception\Exception;
 use Symfony\Component\Console\Output\OutputInterface;
 
@@ -14,6 +15,11 @@ class SecretSantaMail {
 
     private $sent_emails = array();
 
+    public function __construct(LoggerInterface $logger)
+    {
+        $this->logger = $logger;
+    }
+    
     public function getParticipants ()
     {
         return $this->participants;
@@ -39,6 +45,7 @@ class SecretSantaMail {
     public function addUser ($name, $email)
     {
         if($this->validateMail($email)) {
+            $this->logger->debug('add user: '.$name.', '.$email);
             $this->participants[$email] = [
                 'name' => $name,
                 'email' => $email,
@@ -81,25 +88,25 @@ class SecretSantaMail {
 
         foreach($this->participants as $userMail => $user){
 
-            $output->writeln('Santa: '.$user['name']);
+            $this->logger->debug('Santa: '.$user['name']);
 
             $potentialReceivers = $leftOverReceivers;
             unset($potentialReceivers[$userMail]);
 
+            // TODO Find another way to solve this issue
             if(count($potentialReceivers) === 0) {
+                $this->logger->error('Shuffling didn\'t work for the last one, bad luck.');
                 throw new \Exception("Bad Luck, try again");
             }
 
             $potentialReceivers = array_keys($potentialReceivers);
 
-            $output->writeln([
-                'potReceivers:' . join(', ', $potentialReceivers)
-            ]);
+            $this->logger->debug( count($potentialReceivers) . ' Potential receivers: ' . join(', ', $potentialReceivers));
 
             $target = array_rand($potentialReceivers);
             $targetMail = $potentialReceivers[$target];
 
-            $output->writeln('target: '.$targetMail);
+            $this->logger->debug('Selected Target: '.$targetMail);
 
             unset($leftOverReceivers[$targetMail]);
 
@@ -109,6 +116,9 @@ class SecretSantaMail {
 
             ];
         }
+
+        $this->logger->info('Successfully found a target for everyone.');
+        $output->writeln('Successfully found a target for everyone.');
     }
     
 }
