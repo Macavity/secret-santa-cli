@@ -61,64 +61,86 @@ class SendCommand extends ContainerAwareCommand
 
         $inputUsers = $input->getOption('user');
 
-        $santaMail = new SecretSantaMail($this->logger);
+        $secretSantaMail = new SecretSantaMail($this->logger);
 
         if(!empty($configUsers)) {
             $this->logger->debug('Add Users from santas.yml');
             foreach ($configUsers as $name => $email) {
-                $santaMail->addUser($name, $email);
+                $secretSantaMail->addUser($name, $email);
             }
         }
         if(!empty($inputUsers)){
             $this->logger->debug('Add Users from command line option');
             foreach ($inputUsers as $index => $userRow) {
                 $user = explode(':', $userRow);
-                $santaMail->addUser($user[0], $user[1]);
+                $secretSantaMail->addUser($user[0], $user[1]);
             }
 
         }
 
-        if($santaMail->validate()) {
+        if($secretSantaMail->validate()) {
 
-            $participants = $santaMail->getParticipants();
+            $participants = $secretSantaMail->getParticipants();
 
             $output->writeln('We have ' . count($participants) . ' secret santas this year.');
 
-            $santaMail->shuffle($output);
+            $secretSantaMail->shuffle($output);
+
+            // Refresh data after shuffling
+            $participants = $secretSantaMail->getParticipants();
+
+            $mailer = $this->getContainer()->get('mailer');
             
             foreach ($participants as $santa) {
+
+                $santaName = $santa['name'];
+                $santaEmail = $santa['email'];
+                $targetName = $santa['recipient']['name'];
+
                 $mail = \Swift_Message::newInstance()
                     ->setSubject($this->getContainer()->getParameter('mail_title'))
                     ->setFrom(
                         $this->getContainer()->getParameter('mail_from'),
                         $this->getContainer()->getParameter('mail_from_name'))
-//                    //->setTo($santa['email'], $santa['name'])
-                    ->setTo('apape@me.com', $santa['name'])
+                    ->setTo($santaEmail, $santaName)
                     ->setBody(
-                        $this->getContainer()->get('templating')->render('emails/santa.twig', array(
-                            'name' => $santa['name'],
-                            'target' => $santa['recipient']['name']
-                        ))
+                        $this->getContainer()->get('templating')->render('emails/santa.html.twig', array(
+                            'name' => $santaName,
+                            'target_name' => $targetName,
+                        )),
+                         'text/html'
+                    )
+                    ->addPart(
+                        $this->getContainer()->get('templating')->render(
+                            'emails/santa.txt.twig',
+                            array(
+                                'name' => $santaName,
+                                'target_name' => $targetName,
+                            )
+                        ),
+                        'text/plain'
                     );
+
                 if(!$this->testMode){
-                    $this->logger->debug('Try to send mail to '.$santa['email'].'');
+                    $this->logger->debug('Try to send mail to '.$santaEmail.'');
 
-                    $this->getContainer()->get('mailer')->send($mail);
+                    $mailer->send($mail);
 
-                    $this->logger->info('Santa Mail for '.$santa['name'].' sent.');
+                    $this->logger->info('Santa Mail for '.$santaName.' sent.');
 
-                    $output->writeln('Santa Mail for '.$santa['name'].' sent.');
+                    $output->writeln('Santa Mail for '.$santaName.' sent.');
                 }
                 else {
-                    $this->logger->info('(Test-Mode) No Santa Mail for '.$santa['name'].' sent.');
+                    $this->logger->info('(Test-Mode) No Santa Mail for '.$santaName.' (Target: '.$targetName.') sent.');
 
-                    $output->writeln('(Test-Mode) No Santa Mail for '.$santa['name'].' sent.');
+                    $output->writeln('(Test-Mode) No Santa Mail for '.$santaName.' (Target: '.$targetName.') sent.');
                 }
             }
-            
+
+            $output->writeln("Done! Let's go shopping.");
 
 
-            $this->logger->debug("Results: ", $santaMail->getParticipants());
+            $this->logger->debug("Results: ", $participants);
         }
     }
 }
